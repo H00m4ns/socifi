@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             BigInt        @id @default(autoincrement())
+  wallet_address String        @unique(map: "wallet_address") @db.VarChar(66)
+  display_name   String        @db.VarChar(80)
+  created_at     DateTime      @default(now()) @db.Timestamp(0)
+  comments       Comment[]
+  likes          Like[]
+  posts          Post[]
+  reward_claims  RewardClaim[]
+
+  @@map("users")
+}
+
+model Post {
+  id            BigInt        @id @default(autoincrement())
+  user_id       BigInt
+  image_url     String        @db.Text
+  caption       String?       @db.VarChar(280)
+  created_at    DateTime      @default(now()) @db.Timestamp(0)
+  comments      Comment[]
+  likes         Like[]
+  users         User          @relation(fields: [user_id], references: [id], onUpdate: Restrict, map: "fk_posts_user")
+  reward_claims RewardClaim[]
+
+  @@index([user_id], map: "fk_posts_user")
+  @@map("posts")
+}
+
+model Like {
+  id         BigInt   @id @default(autoincrement())
+  post_id    BigInt
+  user_id    BigInt
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  posts      Post     @relation(fields: [post_id], references: [id], onUpdate: Restrict, map: "fk_likes_post")
+  users      User     @relation(fields: [user_id], references: [id], onUpdate: Restrict, map: "fk_likes_user")
+
+  @@unique([post_id, user_id], map: "uniq_like")
+  @@index([user_id], map: "fk_likes_user")
+  @@map("likes")
+}
+
+model Comment {
+  id         BigInt   @id @default(autoincrement())
+  post_id    BigInt
+  user_id    BigInt
+  content    String   @db.VarChar(500)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  posts      Post     @relation(fields: [post_id], references: [id], onUpdate: Restrict, map: "fk_comments_post")
+  users      User     @relation(fields: [user_id], references: [id], onUpdate: Restrict, map: "fk_comments_user")
+
+  @@index([post_id], map: "fk_comments_post")
+  @@index([user_id], map: "fk_comments_user")
+  @@map("comments")
+}
+
+model RewardClaim {
+  id          BigInt                    @id @default(autoincrement())
+  post_id     BigInt?
+  user_id     BigInt
+  action_type reward_claims_action_type
+  tx_digest   String?                   @db.VarChar(120)
+  amount_mist BigInt
+  created_at  DateTime                  @default(now()) @db.Timestamp(0)
+  posts       Post?                     @relation(fields: [post_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_reward_post")
+  users       User                      @relation(fields: [user_id], references: [id], onUpdate: Restrict, map: "fk_reward_user")
+
+  @@unique([post_id, user_id, action_type], map: "uniq_claim")
+  @@index([user_id], map: "fk_reward_user")
+  @@map("reward_claims")
+}
+
+enum reward_claims_action_type {
+  post
+  like
+  comment
+}
