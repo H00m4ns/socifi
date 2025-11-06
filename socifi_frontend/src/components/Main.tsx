@@ -1,12 +1,7 @@
 import { ConnectButton } from "@mysten/dapp-kit";
-import {
-  CameraIcon,
-  HomeIcon,
-  ImageIcon,
-  MessageCircleOffIcon,
-  PencilIcon,
-  SearchIcon,
-} from "lucide-react";
+import { HomeIcon, MessageCircleOffIcon, SearchIcon } from "lucide-react";
+import Card from "../partials/Card";
+import Posting from "./Posting";
 
 export default function Main() {
   return (
@@ -61,62 +56,24 @@ export default function Main() {
           </div>
           <div className="col-span-4 h-fit">
             <div className="w-full h-full border-x border-neutral-300 p-4">
-              <h1 className="text-2xl font-bold sticky top-0 bg-neutral-50 py-4 text-neutral-800">
+              <h1 className="text-2xl font-bold sticky top-0 bg-white py-4 text-neutral-800">
                 Postingan
               </h1>
               <div className="w-full flex flex-col gap-2 py-4">
                 {/* Card */}
-                <div className="w-full p-4 rounded-xl border border-neutral-300">
-                  <div className="w-full flex flex-col justify-center items-start gap-4">
-                    <div className="w-full flex items-center gap-4">
-                      <div className="w-10 h-10 aspect-square rounded-full bg-neutral-300"></div>
-                      <div className="w-full flex flex-col items-center justify-center">
-                        <input
-                          type="text"
-                          className="border-none outline-none w-full text-neutral-700"
-                          placeholder="Write Content here..."
-                        />
-                      </div>
-                      <div className="p-2 rounded-full hover:cursor-pointer hover:bg-neutral-300">
-                        <CameraIcon size={30} className="text-neutral-500" />
-                      </div>
-                    </div>
-                    <div className="w-full aspect-square bg-neutral-300 rounded-xl flex items-center justify-center">
-                      <ImageIcon size={128} className="text-neutral-400" />
-                    </div>
-                    <button className="w-full bg-blue-400 font-semibold text-neutral-50 p-2 rounded-lg flex items-center gap-2 justify-center hover:cursor-pointer">
-                      Posting
-                      <PencilIcon size={18} />
-                    </button>
-                  </div>
-                </div>
+                <Posting />
               </div>
               <div className="w-full flex flex-col gap-2 py-4">
                 {/* Card */}
-                <div className="w-full">
-                  <div className="flex flex-col justify-center items-start gap-4">
-                    <div className="flex gap-4">
-                      <div className="w-10 h-10 rounded-full bg-neutral-300"></div>
-                      <div className="flex flex-col items-start justify-center">
-                        <h1 className="text-md font-medium">
-                          Alias / Wallet Address
-                        </h1>
-                        <p className="text-xs text-neutral-500">
-                          Wallet address
-                        </p>
-                      </div>
-                    </div>
-                    <div className="w-full aspect-square bg-neutral-300 rounded-xl flex items-center justify-center">
-                      <ImageIcon size={128} className="text-neutral-400" />
-                    </div>
-                  </div>
-                </div>
+                <Card alias="Alias / Wallet Address" address="Wallet Address" />
+                <Card alias="Alias / Wallet Address" address="Wallet Address" />
+                <Card alias="Alias / Wallet Address" address="Wallet Address" />
               </div>
             </div>
           </div>
           <div className="col-span-3 h-fit sticky top-0">
             <div className="w-full p-4">
-              <h1 className="text-2xl font-bold sticky top-0 bg-neutral-50 py-4 text-neutral-800">
+              <h1 className="text-2xl font-bold sticky top-0 bg-white py-4 text-neutral-800">
                 Comments
               </h1>
               <div className="w-full rounded-xl border border-neutral-300 flex items-center justify-center flex-col gap-4 p-8">
