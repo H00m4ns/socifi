@@ -6,9 +6,14 @@ USE `day3-sui`;
 CREATE TABLE IF NOT EXISTS `users` (
   `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
   `wallet_address` VARCHAR(66) NOT NULL UNIQUE, -- 0x... (Sui bech32/hex; simpan hex 0x...)
+  `username` VARCHAR(80) DEFAULT NULL,
   `display_name` VARCHAR(80) NOT NULL,
+  `profile_picture` VARCHAR(255) DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- optional: create unique index for username (allows multiple NULLs)
+CREATE UNIQUE INDEX IF NOT EXISTS `uniq_username` ON `users` (`username`);
 
 CREATE TABLE IF NOT EXISTS `posts` (
   `id` BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -82,4 +87,8 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+-- Seed sample user (optional)
+INSERT INTO `users` (`wallet_address`, `username`, `display_name`, `profile_picture`)
+VALUES ('0xaabbcc', 'testuser', 'testuser', 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp');
 

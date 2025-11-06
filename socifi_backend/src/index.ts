@@ -4,6 +4,9 @@ import express from 'express'
 import cors from 'cors'
 import jwt from 'jsonwebtoken'
 import { PrismaClient, reward_claims_action_type } from '@prisma/client'
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
 import { SuiClient, getFullnodeUrl } from '@mysten/sui.js/client'
 import { TransactionBlock } from '@mysten/sui.js/transactions'
 import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519'
@@ -17,6 +20,8 @@ const mapUser = (u: any) =>
   u
     ? {
         id: toNum(u.id),
+        username: u.username,
+        profilePictureUrl: u.profile_picture,
         displayName: u.display_name,
         walletAddress: u.wallet_address,
         createdAt: u.created_at,
@@ -28,7 +33,14 @@ const mapPost = (p: any) => ({
   imageUrl: p.image_url,
   caption: p.caption,
   createdAt: p.created_at,
-  user: p.users ? { displayName: p.users.display_name, walletAddress: p.users.wallet_address } : null,
+  user: p.users
+    ? {
+        username: p.users.username,
+        displayName: p.users.display_name,
+        walletAddress: p.users.wallet_address,
+        profilePictureUrl: p.users.profile_picture,
+      }
+    : null,
   likeCount: Array.isArray(p.likes) ? p.likes.length : 0,
   commentCount: Array.isArray(p.comments) ? p.comments.length : 0,
 })
@@ -39,6 +51,20 @@ const app = express()
 app.use(express.json())
 app.use(cors({ origin: ['http://localhost:5173', 'http://127.0.0.1:5173'] }))
 const prisma = new PrismaClient()
+
+// Setup uploads directory and static serving for profile pictures
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads')
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
+app.use('/uploads', express.static(UPLOAD_DIR))
+
+const upload = multer({
+  dest: UPLOAD_DIR,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('image/')) cb(null, true)
+    else cb(new Error('Only image files are allowed'))
+  },
+})
 
 /** =============== Sui config =============== */
 // const SUI_NETWORK = process.env.SUI_NETWORK || 'testnet'
@@ -113,29 +139,81 @@ app.get('/auth/nonce/:wallet', (req, res) => {
 
 app.post('/auth/verify', async (req, res) => {
   try {
-    const { walletAddress, /* signature, publicKey, */ displayName } = req.body || {}
+    const { walletAddress, /* signature, publicKey, */ displayName, username, profilePictureUrl } = req.body || {}
     if (!walletAddress) return res.status(400).json({ error: 'walletAddress is required' })
 
     const expected = nonces.get(String(walletAddress).toLowerCase())
     if (!expected) return res.status(400).json({ error: 'Nonce not found' })
 
-    // TODO(Prod): verifikasi signature di server
+    // TODO(Prod): verify signature server-side
 
-    const user = await prisma.user.upsert({
-      where: { wallet_address: walletAddress },
-      update: { display_name: displayName || `user-${walletAddress.slice(0, 6)}` },
-      create: { wallet_address: walletAddress, display_name: displayName || `user-${walletAddress.slice(0, 6)}` },
+    // validate optional profile picture URL
+    const isValidUrl = (u: any) => {
+      if (u == null) return true
+      if (typeof u !== 'string') return false
+      if (u.length > 2048) return false
+      try { const p = new URL(u); return p.protocol === 'http:' || p.protocol === 'https:' } catch { return false }
+    }
+    if (!isValidUrl(profilePictureUrl)) return res.status(400).json({ error: 'Invalid profilePictureUrl' })
+
+    const existing = await (prisma as any).user.findUnique({ where: { wallet_address: walletAddress } })
+    if (existing) {
+      // update optional fields
+      const updated = await (prisma as any).user.update({
+        where: { id: existing.id },
+        data: {
+          display_name: displayName || existing.display_name,
+          profile_picture: profilePictureUrl ?? existing.profile_picture,
+        },
+      })
+      const token = jwt.sign({ uid: Number(updated.id), wa: walletAddress }, JWT_SECRET, { expiresIn: '7d' })
+      return res.json({ token, user: mapUser(updated) })
+    }
+
+    // New user must provide username (unique)
+    if (!username || String(username).trim().length === 0) {
+      return res.status(400).json({ error: 'username is required for new users' })
+    }
+    const taken = await (prisma as any).user.findUnique({ where: { username } })
+    if (taken) return res.status(409).json({ error: 'username already taken' })
+
+    const user = await (prisma as any).user.create({
+      data: {
+        wallet_address: walletAddress,
+        username,
+        display_name: displayName || `user-${walletAddress.slice(0, 6)}`,
+        profile_picture: profilePictureUrl ?? null,
+      },
     })
 
-    // const token = jwt.sign({ uid: user.id, wa: walletAddress }, JWT_SECRET, { expiresIn: '7d' })
-    // res.json({ token, user })
-
     const token = jwt.sign({ uid: Number(user.id), wa: walletAddress }, JWT_SECRET, { expiresIn: '7d' })
-    res.json({ token, user: mapUser(user) })   // ← aman dari BigInt
+    res.json({ token, user: mapUser(user) })
 
   } catch (e) {
     console.error('/auth/verify error:', e)
     res.status(500).json({ error: 'Auth failed' })
+  }
+})
+
+// Upload endpoint for profile pictures (no auth required)
+app.post('/upload', upload.single('image'), async (req, res) => {
+  try {
+    const file = req.file as Express.Multer.File | undefined
+    if (!file) return res.status(400).json({ error: 'No file uploaded' })
+
+    // preserve extension
+    const ext = path.extname(file.originalname) || ''
+    const newName = `${file.filename}${ext}`
+    const oldPath = path.join(UPLOAD_DIR, file.filename)
+    const newPath = path.join(UPLOAD_DIR, newName)
+    fs.renameSync(oldPath, newPath)
+
+    const host = process.env.HOST || `http://localhost:${process.env.PORT || 4000}`
+    const url = `${host}/uploads/${newName}`
+    res.json({ url })
+  } catch (e) {
+    console.error('/upload error', e)
+    res.status(500).json({ error: 'Upload failed' })
   }
 })
 
@@ -159,7 +237,7 @@ app.get('/posts', async (_req, res) => {
     const list = await prisma.post.findMany({
       orderBy: { created_at: 'desc' },
       include: {
-        users: { select: { id: true, display_name: true, wallet_address: true, created_at: true } },
+        users: true,
         likes: { select: { id: true } },
         comments: { select: { id: true } },
       },
@@ -168,6 +246,28 @@ app.get('/posts', async (_req, res) => {
   } catch (e) {
     console.error('/posts list error:', e)
     res.status(500).json({ error: 'Failed to load posts' })
+  }
+})
+
+/** =============== Me (user info + balance) =============== */
+app.get('/me', auth, async (req: AuthedReq, res) => {
+  try {
+    const uid = req.auth!.uid
+    const user = await prisma.user.findUnique({ where: { id: uid } })
+    if (!user) return res.status(404).json({ error: 'User not found' })
+
+    // sum reward_claims.amount_mist for this user
+    const agg = await prisma.rewardClaim.aggregate({
+      where: { user_id: uid },
+      _sum: { amount_mist: true },
+    })
+    const totalMist = agg._sum.amount_mist ?? BigInt(0)
+    const balanceSui = Number(totalMist) / 1e9
+
+    res.json({ user: mapUser(user), balance: balanceSui })
+  } catch (e) {
+    console.error('/me error', e)
+    res.status(500).json({ error: 'Failed to load me' })
   }
 })
 
