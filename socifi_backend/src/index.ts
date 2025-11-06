@@ -349,6 +349,12 @@ app.post('/likes', auth, async (req: AuthedReq, res) => {
   try {
     const { postId } = req.body || {}
     const uid = req.auth!.uid
+    // ensure post exists
+    const post = await prisma.post.findUnique({ where: { id: BigInt(postId) } })
+    if (!post) return res.status(404).json({ error: 'Post not found' })
+
+    // prevent users from liking their own post
+    if (post.user_id === uid) return res.status(400).json({ error: 'Cannot like your own post' })
 
     const like = await prisma.like
       .create({ data: { post_id: BigInt(postId), user_id: uid } })
@@ -395,6 +401,12 @@ app.post('/comments', auth, async (req: AuthedReq, res) => {
     const { postId, content } = req.body || {}
     if (!content) return res.status(400).json({ error: 'content is required' })
     const uid = req.auth!.uid
+    // ensure post exists
+    const post = await prisma.post.findUnique({ where: { id: BigInt(postId) } })
+    if (!post) return res.status(404).json({ error: 'Post not found' })
+
+    // prevent users from commenting on their own post
+    if (post.user_id === uid) return res.status(400).json({ error: 'Cannot comment on your own post' })
 
     const comment = await prisma.comment.create({
       data: { post_id: BigInt(postId), user_id: uid, content },

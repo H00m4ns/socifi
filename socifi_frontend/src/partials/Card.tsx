@@ -10,6 +10,8 @@ type CardProps = {
   commentCount?: number;
   onLike?: (postId?: number) => void;
   onComment?: (postId?: number) => void;
+  isOwn?: boolean;
+  canInteract?: boolean;
 };
 
 export default function Card(card: CardProps) {
@@ -17,11 +19,17 @@ export default function Card(card: CardProps) {
     <div className="w-full my-5">
       <div className="flex flex-col justify-center items-start gap-4">
         <div className="flex gap-4">
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-neutral-300">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-neutral-300 flex items-center justify-center text-sm font-semibold text-white">
             {card.avatar ? (
-              // simple <img> avatar
               <img src={card.avatar} alt="avatar" className="w-full h-full object-cover" />
-            ) : null}
+            ) : (
+              // fallback: initials from alias
+              <div className="w-full h-full flex items-center justify-center bg-neutral-400">
+                <span>
+                  {String(card.alias || 'U').trim().charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex flex-col items-start justify-center">
             <h1 className="text-md font-medium">{card.alias}</h1>
@@ -40,15 +48,19 @@ export default function Card(card: CardProps) {
 
         <div className="w-full flex items-center gap-3">
           <button
-            onClick={() => card.onLike && card.onLike(card.postId)}
-            className="px-3 py-1 rounded bg-neutral-100 hover:bg-neutral-200"
+            onClick={() => !card.isOwn && card.canInteract && card.onLike && card.onLike(card.postId)}
+            disabled={card.isOwn || !card.canInteract}
+            className={`px-3 py-1 rounded bg-neutral-100 hover:bg-neutral-200 ${(card.isOwn || !card.canInteract) ? 'opacity-60 cursor-not-allowed' : ''}`}
+            aria-disabled={card.isOwn || !card.canInteract}
+            title={card.isOwn ? 'Cannot like your own post' : (!card.canInteract ? 'Connect wallet to like' : '')}
           >
             👍 Like {card.likeCount ?? 0}
           </button>
 
           <button
             onClick={() => card.onComment && card.onComment(card.postId)}
-            className="px-3 py-1 rounded bg-neutral-100 hover:bg-neutral-200"
+            disabled={card.isOwn}
+            className={`px-3 py-1 rounded bg-neutral-100 hover:bg-neutral-200 ${card.isOwn ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             💬 Comment {card.commentCount ?? 0}
           </button>

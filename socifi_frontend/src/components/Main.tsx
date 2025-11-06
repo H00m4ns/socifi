@@ -170,9 +170,9 @@ export default function Main() {
   return (
     <div className="w-full">
       <div className="container max-w-7xl mx-auto">
-        <div className="w-full grid grid-cols-9 divide-neutral-200">
+        <div className="w-full grid grid-cols-1 md:grid-cols-9 divide-neutral-200">
           {/* Sidebar kiri */}
-          <div className="col-span-2 h-screen sticky top-0">
+          <div className="col-span-1 md:col-span-2 md:h-screen md:sticky md:top-0">
             <div className="w-full h-full flex flex-col gap-4 p-4">
               <a href="/" className="text-2xl font-bold text-neutral-800">
                 SociFi
@@ -218,12 +218,12 @@ export default function Main() {
           </div>
 
           {/* Feed tengah */}
-          <div className="col-span-5 min-h-screen p-4 border-x border-neutral-200">
+          <div className="col-span-1 md:col-span-5 min-h-screen p-4 border-x border-neutral-200">
             <h1 className="text-xl font-bold text-neutral-800">Postingan</h1>
 
             {/* Form posting, bisa disable kalau belum login backend */}
             <div className="mt-4 opacity-100">
-              <Posting />
+              <Posting avatar={user?.profilePictureUrl ?? null} onPosted={fetchPosts} canInteract={!!address} />
             </div>
 
             {/* Posts loaded from backend */}
@@ -241,6 +241,8 @@ export default function Main() {
                   avatar={p.user?.profilePictureUrl ?? null}
                   likeCount={p.likeCount}
                   commentCount={p.commentCount}
+                  isOwn={user?.walletAddress === p.user?.walletAddress}
+                  canInteract={!!address}
                   onLike={handleLike}
                   onComment={handleOpenComments}
                 />
@@ -249,7 +251,7 @@ export default function Main() {
           </div>
 
           {/* Sidebar kanan - comments panel */}
-          <div className="col-span-2 p-4">
+          <div className="col-span-1 md:col-span-2 p-4 md:h-screen md:sticky md:top-0">
             <h1 className="text-xl font-bold text-neutral-800">Comments</h1>
             {!selectedPost ? (
               <div className="w-full p-5 rounded-2xl border border-neutral-200 mt-4 flex flex-col items-center justify-center">
@@ -257,26 +259,28 @@ export default function Main() {
                 <p className="text-neutral-500 font-semibold mt-2">Pilih posting untuk lihat komentar</p>
               </div>
             ) : (
-              <div className="w-full mt-4">
-                <div className="rounded-2xl border border-neutral-200 overflow-hidden">
-                  <div className="w-full h-48 bg-neutral-200">
-                    {selectedPost.imageUrl ? (
-                      <img src={selectedPost.imageUrl} alt="post" className="w-full h-full object-cover" />
-                    ) : null}
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-neutral-300 overflow-hidden">
-                        {selectedPost.user?.profilePictureUrl ? (
-                          <img src={selectedPost.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
-                        ) : null}
-                      </div>
-                      <div>
-                        <div className="font-medium">{selectedPost.user?.username || selectedPost.user?.displayName}</div>
-                        <div className="text-xs text-neutral-500">{selectedPost.user?.walletAddress}</div>
-                      </div>
+              <div className="w-full mt-4 h-full overflow-auto">
+                <div className="rounded-2xl border border-neutral-200 overflow-hidden p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-20 h-20 rounded-lg bg-neutral-200 overflow-hidden flex-shrink-0">
+                      {selectedPost.imageUrl ? (
+                        <img src={selectedPost.imageUrl} alt="post" className="w-full h-full object-cover" />
+                      ) : null}
                     </div>
-                    {selectedPost.caption ? <p className="mt-3">{selectedPost.caption}</p> : null}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-neutral-300 overflow-hidden">
+                          {selectedPost.user?.profilePictureUrl ? (
+                            <img src={selectedPost.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
+                          ) : null}
+                        </div>
+                        <div>
+                          <div className="font-medium">{selectedPost.user?.username || selectedPost.user?.displayName}</div>
+                          <div className="text-xs text-neutral-500">{selectedPost.user?.walletAddress}</div>
+                        </div>
+                      </div>
+                      {selectedPost.caption ? <p className="mt-3">{selectedPost.caption}</p> : null}
+                    </div>
                   </div>
                 </div>
 
@@ -287,11 +291,15 @@ export default function Main() {
                       selectedPost.comments.map((c: any) => (
                         <div key={c.id} className="p-3 border rounded-lg">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-neutral-300 overflow-hidden">
-                              {c.user?.profilePictureUrl ? (
-                                <img src={c.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
-                              ) : null}
-                            </div>
+                                  <div className="w-8 h-8 rounded-full bg-neutral-300 overflow-hidden flex items-center justify-center text-xs font-semibold text-white">
+                                    {c.user?.profilePictureUrl ? (
+                                      <img src={c.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-neutral-400">
+                                        <span>{String(c.user?.username || c.user?.displayName || 'U').trim().charAt(0).toUpperCase()}</span>
+                                      </div>
+                                    )}
+                                  </div>
                             <div>
                               <div className="text-sm font-medium">{c.user?.username || c.user?.displayName || 'Anon'}</div>
                               <div className="text-xs text-neutral-500">{c.user?.walletAddress}</div>
@@ -305,18 +313,35 @@ export default function Main() {
                     )}
                   </div>
 
-                  <div className="mt-4">
-                    <textarea
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      className="w-full border rounded-lg p-2"
-                      placeholder="Tulis komentar..."
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={submitComment} className="px-4 py-2 bg-blue-500 text-white rounded-lg">Kirim</button>
-                      <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                  {/* If this is the user's own post, don't allow commenting */}
+                  {user?.walletAddress === selectedPost.user?.walletAddress ? (
+                    <div className="mt-4 p-3 rounded-lg bg-neutral-50 border border-neutral-200 text-sm text-neutral-600">
+                      Kamu tidak bisa mengomentari postinganmu sendiri — hanya bisa melihat komentar.
+                      <div className="mt-2 flex justify-end">
+                        <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                      </div>
                     </div>
-                  </div>
+                  ) : !address ? (
+                    <div className="mt-4 p-3 rounded-lg bg-neutral-50 border border-neutral-200 text-sm text-neutral-600">
+                      Hubungkan wallet untuk dapat mengomentari postingan.
+                      <div className="mt-2 flex justify-end">
+                        <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4">
+                      <textarea
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        className="w-full border rounded-lg p-2"
+                        placeholder="Tulis komentar..."
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={submitComment} className="px-4 py-2 bg-blue-500 text-white rounded-lg">Kirim</button>
+                        <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
