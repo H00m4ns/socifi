@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { ConnectButton, useCurrentAccount, useSignPersonalMessage } from "@mysten/dapp-kit";
+import {
+  ConnectButton,
+  useCurrentAccount,
+  useSignPersonalMessage,
+} from "@mysten/dapp-kit";
 import { HomeIcon, MessageCircleOffIcon, SearchIcon } from "lucide-react";
 import Card from "../partials/Card";
 import Posting from "./Posting";
@@ -14,154 +18,162 @@ export default function Main() {
   );
 
   const [user, setUser] = useState<User | null>(null);
-  const { mutateAsync: signMsg } = useSignPersonalMessage()
-  const [posts, setPosts] = useState<Array<any>>([])
-  const [loadingPosts, setLoadingPosts] = useState(false)
-  const [selectedPost, setSelectedPost] = useState<any | null>(null)
-  const [commentText, setCommentText] = useState('')
-  const [needRegister, setNeedRegister] = useState(false)
-  const [username, setUsername] = useState('')
-  const [pp, setPp] = useState('')
-  const [balance, setBalance] = useState<number | null>(null)
+  const { mutateAsync: signMsg } = useSignPersonalMessage();
+  const [posts, setPosts] = useState<Array<any>>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [needRegister, setNeedRegister] = useState(false);
+  const [username, setUsername] = useState("");
+  const [pp, setPp] = useState("");
+  const [balance, setBalance] = useState<number | null>(null);
 
   // load posts
   async function fetchPosts() {
-    setLoadingPosts(true)
+    setLoadingPosts(true);
     try {
-      const { data } = await api.get('/posts')
-      setPosts(data)
+      const { data } = await api.get("/posts");
+      setPosts(data);
     } catch (e) {
-      console.error('Failed to load posts', e)
+      console.error("Failed to load posts", e);
     } finally {
-      setLoadingPosts(false)
+      setLoadingPosts(false);
     }
   }
 
-  useEffect(() => { fetchPosts() }, [])
+  useEffect(() => {
+    fetchPosts();
+  }, []);
 
   // when wallet connects, perform sign+verify flow here (Main handles auth)
   useEffect(() => {
     const run = async () => {
-      if (!address) return
+      if (!address) return;
       try {
         // fetch nonce
-        const { nonce } = await getNonce(address)
-        const message = `Login to SociFi\nAddress: ${address}\nNonce: ${nonce}`
-        const sig = await signMsg({ message: new TextEncoder().encode(message) })
+        const { nonce } = await getNonce(address);
+        const message = `Login to SociFi\nAddress: ${address}\nNonce: ${nonce}`;
+        const sig = await signMsg({
+          message: new TextEncoder().encode(message),
+        });
 
         // call verify (backend may require username for new users)
         try {
           const payload: any = {
             walletAddress: address,
-            displayName: `user-${address.slice(0,6)}`,
+            displayName: `user-${address.slice(0, 6)}`,
             signature: Array.from((sig as any).signature),
-          }
-          const resp = await verifyWithPayload(payload)
+          };
+          const resp = await verifyWithPayload(payload);
           if (resp.token) {
-            localStorage.setItem('jwt', resp.token)
+            localStorage.setItem("jwt", resp.token);
           }
-          if (resp.user) setUser(resp.user as any)
+          if (resp.user) setUser(resp.user as any);
 
           // load balance
-          const me = await getMe()
-          setBalance(me.balance ?? null)
+          const me = await getMe();
+          setBalance(me.balance ?? null);
         } catch (e: any) {
-          const err = e?.response?.data?.error || e?.message || ''
-          if (err.includes('username is required')) {
+          const err = e?.response?.data?.error || e?.message || "";
+          if (err.includes("username is required")) {
             // show register modal
-            setNeedRegister(true)
+            setNeedRegister(true);
           } else {
-            console.error('verify failed', e)
+            console.error("verify failed", e);
           }
         }
       } catch (e) {
-        console.error('signin failed', e)
+        console.error("signin failed", e);
       }
-    }
-    run()
-  }, [address])
+    };
+    run();
+  }, [address]);
 
   async function onSubmitRegister(e: React.FormEvent) {
-    e.preventDefault()
-    if (!address) return
+    e.preventDefault();
+    if (!address) return;
     try {
       // re-run sign flow to get current nonce and signature
-      const { nonce } = await getNonce(address)
-      const message = `Login to SociFi\nAddress: ${address}\nNonce: ${nonce}`
-      const sig = await signMsg({ message: new TextEncoder().encode(message) })
+      const { nonce } = await getNonce(address);
+      const message = `Login to SociFi\nAddress: ${address}\nNonce: ${nonce}`;
+      const sig = await signMsg({ message: new TextEncoder().encode(message) });
 
       const payload: any = {
         walletAddress: address,
-        displayName: `user-${address.slice(0,6)}`,
+        displayName: `user-${address.slice(0, 6)}`,
         username: username.trim(),
         profilePictureUrl: pp.trim() || null,
         signature: Array.from((sig as any).signature),
-      }
-      const resp = await verifyWithPayload(payload)
-      if (resp.token) localStorage.setItem('jwt', resp.token)
-      if (resp.user) setUser(resp.user as any)
-      setNeedRegister(false)
+      };
+      const resp = await verifyWithPayload(payload);
+      if (resp.token) localStorage.setItem("jwt", resp.token);
+      if (resp.user) setUser(resp.user as any);
+      setNeedRegister(false);
 
-      const me = await getMe()
-      setBalance(me.balance ?? null)
+      const me = await getMe();
+      setBalance(me.balance ?? null);
     } catch (e) {
-      console.error('[register] error', e)
-      const err = (e as any)?.response?.data?.error || (e as any)?.message || ''
-      alert('Gagal mendaftar: ' + err)
+      console.error("[register] error", e);
+      const err =
+        (e as any)?.response?.data?.error || (e as any)?.message || "";
+      alert("Gagal mendaftar: " + err);
     }
   }
 
   // Load details + comments for a post
   async function loadPostDetails(postId: number) {
     try {
-      const { data } = await api.get(`/posts/${postId}`)
-      setSelectedPost(data)
+      const { data } = await api.get(`/posts/${postId}`);
+      setSelectedPost(data);
     } catch (e) {
-      console.error('Failed to load post details', e)
+      console.error("Failed to load post details", e);
     }
   }
 
   async function handleLike(postId?: number) {
-    if (!postId) return
+    if (!postId) return;
     try {
-      await api.post('/likes', { postId })
-      await fetchPosts()
-      if (selectedPost?.id === postId) await loadPostDetails(postId)
+      await api.post("/likes", { postId });
+      await fetchPosts();
+      if (selectedPost?.id === postId) await loadPostDetails(postId);
       // refresh balance after like (reward claim may have been created)
       try {
-        const me = await getMe()
-        setBalance(me.balance ?? null)
+        const me = await getMe();
+        setBalance(me.balance ?? null);
       } catch (e) {
-        console.warn('failed to refresh balance after like', e)
+        console.warn("failed to refresh balance after like", e);
       }
     } catch (e: any) {
-      const err = e?.response?.data?.error || e?.message || 'Failed to like'
-      alert(err)
+      const err = e?.response?.data?.error || e?.message || "Failed to like";
+      alert(err);
     }
   }
 
   async function handleOpenComments(postId?: number) {
-    if (!postId) return
-    await loadPostDetails(postId)
+    if (!postId) return;
+    await loadPostDetails(postId);
   }
 
   async function submitComment() {
-    if (!selectedPost) return
-    if (!commentText.trim()) return alert('Isi komentar dulu')
+    if (!selectedPost) return;
+    if (!commentText.trim()) return alert("Isi komentar dulu");
     try {
-      await api.post('/comments', { postId: selectedPost.id, content: commentText.trim() })
-      setCommentText('')
-      await loadPostDetails(selectedPost.id)
-      await fetchPosts()
+      await api.post("/comments", {
+        postId: selectedPost.id,
+        content: commentText.trim(),
+      });
+      setCommentText("");
+      await loadPostDetails(selectedPost.id);
+      await fetchPosts();
       // refresh balance after comment
       try {
-        const me = await getMe()
-        setBalance(me.balance ?? null)
+        const me = await getMe();
+        setBalance(me.balance ?? null);
       } catch (e) {
-        console.warn('failed to refresh balance after comment', e)
+        console.warn("failed to refresh balance after comment", e);
       }
     } catch (e: any) {
-      alert(e?.response?.data?.error || e?.message || 'Gagal komentar')
+      alert(e?.response?.data?.error || e?.message || "Gagal komentar");
     }
   }
 
@@ -170,60 +182,79 @@ export default function Main() {
   return (
     <div className="w-full">
       <div className="container max-w-7xl mx-auto">
-        <div className="w-full grid grid-cols-1 md:grid-cols-9 divide-neutral-200">
+        <div className="w-full grid grid-cols-9 divide-neutral-200">
           {/* Sidebar kiri */}
-          <div className="col-span-1 md:col-span-2 md:h-screen md:sticky md:top-0">
+          <div className="col-span-2 h-screen">
             <div className="w-full h-full flex flex-col gap-4 p-4">
               <a href="/" className="text-2xl font-bold text-neutral-800">
                 SociFi
               </a>
 
-              <div className="w-full flex items-center justify-center flex-col text-start">
-                <a className="w-full py-2 rounded-xl px-4 hover:bg-neutral-100 flex items-center gap-2">
-                  <HomeIcon className="text-neutral-600" size={18} />
+              <div className="w-full mt-2 flex items-center justify-center flex-col text-start">
+                <a className="w-full py-3 rounded-xl px-4 hover:bg-neutral-200 flex items-center gap-2 text-neutral-700 font-semibold cursor-pointer">
+                  <HomeIcon className="text-neutral-600" size={20} />
                   Beranda
                 </a>
-                <a className="w-full py-2 rounded-xl px-4 hover:bg-neutral-100 flex items-center gap-2">
-                  <SearchIcon className="text-neutral-600" size={18} />
+                <a className="w-full py-2 rounded-xl px-4 hover:bg-neutral-200 flex items-center gap-2 text-neutral-700 font-semibold cursor-pointer">
+                  <SearchIcon className="text-neutral-600" size={20} />
                   Jelajahi
                 </a>
               </div>
 
               {/* Kartu saldo & identitas sederhana */}
-              <div className="w-full mt-2">
-                <div className="p-4 rounded-2xl border border-neutral-200">
-                  <p className="text-sm text-neutral-500">Balance</p>
-                  {/* Kamu bisa isi angka real pakai Sui SDK nanti */}
-                  <h2 className="text-3xl font-bold">{balance != null ? balance.toFixed(4) : '0.0000'}</h2>
-                  <p className="text-xs text-neutral-500">SUI</p>
-                </div>
+              <div className="w-full mt-auto">
+                {address && (
+                  <>
+                    <div className="p-4 rounded-2xl border border-neutral-300">
+                      <p className="text-sm font-medium text-zinc-600 mb-1">
+                        Balance
+                      </p>
+                      {/* Kamu bisa isi angka real pakai Sui SDK nanti */}
+                      <h2 className="text-3xl font-bold text-zinc-800">
+                        {balance != null ? balance.toFixed(4) : "0.0000"}
+                      </h2>
+                      <p className="text-sm text-neutral-600 mt-1">SUI</p>
+                    </div>
 
-                <div className="mt-3 p-4 rounded-2xl border border-neutral-200">
-                  <p className="text-xs text-neutral-500 mb-1">
-                    {user?.username ? "Alias" : "Alias / Wallet Address"}
-                  </p>
-                  <p className="font-medium truncate">
-                    {user?.username || shortAddr || "-"}
-                  </p>
-                  <p className="text-xs text-neutral-500 truncate">
-                    {address || "Wallet address"}
-                  </p>
-                </div>
-
+                    <div className="mt-3 p-4 rounded-2xl border border-neutral-300">
+                      <div className="flex gap-2 items-center">
+                        <div className="w-10 aspect-square rounded-full bg-neutral-300"></div>
+                        <div className="flex flex-col items-start justify-center">
+                          {/* <p className="text-xs text-neutral-600 mb-1">
+                        {user?.username ? "Alias" : "Alias / Wallet Address"}
+                      </p> */}
+                          <p className="font-medium truncate text-neutral-800">
+                            {user?.username || shortAddr || "-"}
+                          </p>
+                          <p className="text-xs text-neutral-500 truncate">
+                            {address?.slice(0, 6)}...
+                            {address?.slice(-4)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="mt-3">
-                  <ConnectButton />
+                  <ConnectButton className="w-full bg-blue-400! font-medium! text-neutral-50!" />
                 </div>
               </div>
             </div>
           </div>
 
           {/* Feed tengah */}
-          <div className="col-span-1 md:col-span-5 min-h-screen p-4 border-x border-neutral-200">
-            <h1 className="text-xl font-bold text-neutral-800">Postingan</h1>
+          <div className="col-span-4 p-4 border-x border-neutral-200">
+            <h1 className="text-xl font-bold text-neutral-800 sticky top-0 bg-white py-2">
+              Postingan
+            </h1>
 
             {/* Form posting, bisa disable kalau belum login backend */}
             <div className="mt-4 opacity-100">
-              <Posting avatar={user?.profilePictureUrl ?? null} onPosted={fetchPosts} canInteract={!!address} />
+              <Posting
+                avatar={user?.profilePictureUrl ?? null}
+                onPosted={fetchPosts}
+                canInteract={!!address}
+              />
             </div>
 
             {/* Posts loaded from backend */}
@@ -235,8 +266,8 @@ export default function Main() {
                   key={p.id}
                   postId={p.id}
                   // prefer username (handle null), then displayName
-                  alias={p.user?.username || p.user?.displayName || 'Anon'}
-                  address={p.user?.walletAddress || 'unknown'}
+                  alias={p.user?.username || p.user?.displayName || "Anon"}
+                  address={p.user?.walletAddress || "unknown"}
                   image={p.imageUrl}
                   avatar={p.user?.profilePictureUrl ?? null}
                   likeCount={p.likeCount}
@@ -251,35 +282,54 @@ export default function Main() {
           </div>
 
           {/* Sidebar kanan - comments panel */}
-          <div className="col-span-1 md:col-span-2 p-4 md:h-screen md:sticky md:top-0">
-            <h1 className="text-xl font-bold text-neutral-800">Comments</h1>
+          <div className="col-span-3 p-4 h-fit">
+            <h1 className="text-xl font-bold text-neutral-800 sticky py-2 top-0">
+              Komentar
+            </h1>
             {!selectedPost ? (
               <div className="w-full p-5 rounded-2xl border border-neutral-200 mt-4 flex flex-col items-center justify-center">
                 <MessageCircleOffIcon size={64} className="text-neutral-300" />
-                <p className="text-neutral-500 font-semibold mt-2">Pilih posting untuk lihat komentar</p>
+                <p className="text-neutral-500 font-semibold mt-2">
+                  Pilih posting untuk lihat komentar
+                </p>
               </div>
             ) : (
               <div className="w-full mt-4 h-full overflow-auto">
                 <div className="rounded-2xl border border-neutral-200 overflow-hidden p-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-20 h-20 rounded-lg bg-neutral-200 overflow-hidden flex-shrink-0">
+                    <div className="w-20 h-20 rounded-lg bg-neutral-200 overflow-hidden">
                       {selectedPost.imageUrl ? (
-                        <img src={selectedPost.imageUrl} alt="post" className="w-full h-full object-cover" />
+                        <img
+                          src={selectedPost.imageUrl}
+                          alt="post"
+                          className="w-full h-full object-cover"
+                        />
                       ) : null}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-neutral-300 overflow-hidden">
                           {selectedPost.user?.profilePictureUrl ? (
-                            <img src={selectedPost.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
+                            <img
+                              src={selectedPost.user.profilePictureUrl}
+                              alt="avatar"
+                              className="w-full h-full object-cover"
+                            />
                           ) : null}
                         </div>
                         <div>
-                          <div className="font-medium">{selectedPost.user?.username || selectedPost.user?.displayName}</div>
-                          <div className="text-xs text-neutral-500">{selectedPost.user?.walletAddress}</div>
+                          <div className="font-medium">
+                            {selectedPost.user?.username ||
+                              selectedPost.user?.displayName}
+                          </div>
+                          <div className="text-xs text-neutral-500">
+                            {selectedPost.user?.walletAddress}
+                          </div>
                         </div>
                       </div>
-                      {selectedPost.caption ? <p className="mt-3">{selectedPost.caption}</p> : null}
+                      {selectedPost.caption ? (
+                        <p className="mt-3">{selectedPost.caption}</p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -287,45 +337,78 @@ export default function Main() {
                 <div className="mt-4">
                   <h4 className="font-semibold mb-2">Komentar</h4>
                   <div className="max-h-64 overflow-auto space-y-3">
-                    {selectedPost.comments && selectedPost.comments.length > 0 ? (
+                    {selectedPost.comments &&
+                    selectedPost.comments.length > 0 ? (
                       selectedPost.comments.map((c: any) => (
                         <div key={c.id} className="p-3 border rounded-lg">
                           <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-neutral-300 overflow-hidden flex items-center justify-center text-xs font-semibold text-white">
-                                    {c.user?.profilePictureUrl ? (
-                                      <img src={c.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center bg-neutral-400">
-                                        <span>{String(c.user?.username || c.user?.displayName || 'U').trim().charAt(0).toUpperCase()}</span>
-                                      </div>
-                                    )}
-                                  </div>
+                            <div className="w-8 h-8 rounded-full bg-neutral-300 overflow-hidden flex items-center justify-center text-xs font-semibold text-white">
+                              {c.user?.profilePictureUrl ? (
+                                <img
+                                  src={c.user.profilePictureUrl}
+                                  alt="avatar"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-neutral-400">
+                                  <span>
+                                    {String(
+                                      c.user?.username ||
+                                        c.user?.displayName ||
+                                        "U"
+                                    )
+                                      .trim()
+                                      .charAt(0)
+                                      .toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                             <div>
-                              <div className="text-sm font-medium">{c.user?.username || c.user?.displayName || 'Anon'}</div>
-                              <div className="text-xs text-neutral-500">{c.user?.walletAddress}</div>
+                              <div className="text-sm font-medium">
+                                {c.user?.username ||
+                                  c.user?.displayName ||
+                                  "Anon"}
+                              </div>
+                              <div className="text-xs text-neutral-500">
+                                {c.user?.walletAddress}
+                              </div>
                             </div>
                           </div>
                           <p className="mt-2 text-sm">{c.content}</p>
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-neutral-500">Belum ada komentar</p>
+                      <p className="text-sm text-neutral-500">
+                        Belum ada komentar
+                      </p>
                     )}
                   </div>
 
                   {/* If this is the user's own post, don't allow commenting */}
                   {user?.walletAddress === selectedPost.user?.walletAddress ? (
                     <div className="mt-4 p-3 rounded-lg bg-neutral-50 border border-neutral-200 text-sm text-neutral-600">
-                      Kamu tidak bisa mengomentari postinganmu sendiri — hanya bisa melihat komentar.
+                      Kamu tidak bisa mengomentari postinganmu sendiri — hanya
+                      bisa melihat komentar.
                       <div className="mt-2 flex justify-end">
-                        <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                        <button
+                          onClick={() => setSelectedPost(null)}
+                          className="px-4 py-2 border rounded-lg"
+                        >
+                          Tutup
+                        </button>
                       </div>
                     </div>
                   ) : !address ? (
                     <div className="mt-4 p-3 rounded-lg bg-neutral-50 border border-neutral-200 text-sm text-neutral-600">
                       Hubungkan wallet untuk dapat mengomentari postingan.
                       <div className="mt-2 flex justify-end">
-                        <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                        <button
+                          onClick={() => setSelectedPost(null)}
+                          className="px-4 py-2 border rounded-lg"
+                        >
+                          Tutup
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -337,8 +420,18 @@ export default function Main() {
                         placeholder="Tulis komentar..."
                       />
                       <div className="flex gap-2 mt-2">
-                        <button onClick={submitComment} className="px-4 py-2 bg-blue-500 text-white rounded-lg">Kirim</button>
-                        <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                        <button
+                          onClick={submitComment}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+                        >
+                          Kirim
+                        </button>
+                        <button
+                          onClick={() => setSelectedPost(null)}
+                          className="px-4 py-2 border rounded-lg"
+                        >
+                          Tutup
+                        </button>
                       </div>
                     </div>
                   )}
