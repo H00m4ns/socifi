@@ -1,13 +1,18 @@
 import { ImageIcon } from "lucide-react";
 
-type Card = {
+type CardProps = {
+  postId?: number;
   alias: string;
   address: string;
   image?: string;
   avatar?: string | null;
+  likeCount?: number;
+  commentCount?: number;
+  onLike?: (postId?: number) => void;
+  onComment?: (postId?: number) => void;
 };
 
-export default function Card(card: Card) {
+export default function Card(card: CardProps) {
   return (
     <div className="w-full my-5">
       <div className="flex flex-col justify-center items-start gap-4">
@@ -31,6 +36,22 @@ export default function Card(card: Card) {
               <ImageIcon size={128} className="text-neutral-400" />
             </div>
           )}
+        </div>
+
+        <div className="w-full flex items-center gap-3">
+          <button
+            onClick={() => card.onLike && card.onLike(card.postId)}
+            className="px-3 py-1 rounded bg-neutral-100 hover:bg-neutral-200"
+          >
+            👍 Like {card.likeCount ?? 0}
+          </button>
+
+          <button
+            onClick={() => card.onComment && card.onComment(card.postId)}
+            className="px-3 py-1 rounded bg-neutral-100 hover:bg-neutral-200"
+          >
+            💬 Comment {card.commentCount ?? 0}
+          </button>
         </div>
       </div>
     </div>

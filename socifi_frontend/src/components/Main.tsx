@@ -17,26 +17,27 @@ export default function Main() {
   const { mutateAsync: signMsg } = useSignPersonalMessage()
   const [posts, setPosts] = useState<Array<any>>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
+  const [selectedPost, setSelectedPost] = useState<any | null>(null)
+  const [commentText, setCommentText] = useState('')
   const [needRegister, setNeedRegister] = useState(false)
   const [username, setUsername] = useState('')
   const [pp, setPp] = useState('')
   const [balance, setBalance] = useState<number | null>(null)
 
   // load posts
-  useEffect(() => {
-    const load = async () => {
-      setLoadingPosts(true)
-      try {
-        const { data } = await api.get('/posts')
-        setPosts(data)
-      } catch (e) {
-        console.error('Failed to load posts', e)
-      } finally {
-        setLoadingPosts(false)
-      }
+  async function fetchPosts() {
+    setLoadingPosts(true)
+    try {
+      const { data } = await api.get('/posts')
+      setPosts(data)
+    } catch (e) {
+      console.error('Failed to load posts', e)
+    } finally {
+      setLoadingPosts(false)
     }
-    load()
-  }, [])
+  }
+
+  useEffect(() => { fetchPosts() }, [])
 
   // when wallet connects, perform sign+verify flow here (Main handles auth)
   useEffect(() => {
@@ -110,6 +111,60 @@ export default function Main() {
     }
   }
 
+  // Load details + comments for a post
+  async function loadPostDetails(postId: number) {
+    try {
+      const { data } = await api.get(`/posts/${postId}`)
+      setSelectedPost(data)
+    } catch (e) {
+      console.error('Failed to load post details', e)
+    }
+  }
+
+  async function handleLike(postId?: number) {
+    if (!postId) return
+    try {
+      await api.post('/likes', { postId })
+      await fetchPosts()
+      if (selectedPost?.id === postId) await loadPostDetails(postId)
+      // refresh balance after like (reward claim may have been created)
+      try {
+        const me = await getMe()
+        setBalance(me.balance ?? null)
+      } catch (e) {
+        console.warn('failed to refresh balance after like', e)
+      }
+    } catch (e: any) {
+      const err = e?.response?.data?.error || e?.message || 'Failed to like'
+      alert(err)
+    }
+  }
+
+  async function handleOpenComments(postId?: number) {
+    if (!postId) return
+    await loadPostDetails(postId)
+  }
+
+  async function submitComment() {
+    if (!selectedPost) return
+    if (!commentText.trim()) return alert('Isi komentar dulu')
+    try {
+      await api.post('/comments', { postId: selectedPost.id, content: commentText.trim() })
+      setCommentText('')
+      await loadPostDetails(selectedPost.id)
+      await fetchPosts()
+      // refresh balance after comment
+      try {
+        const me = await getMe()
+        setBalance(me.balance ?? null)
+      } catch (e) {
+        console.warn('failed to refresh balance after comment', e)
+      }
+    } catch (e: any) {
+      alert(e?.response?.data?.error || e?.message || 'Gagal komentar')
+    }
+  }
+
   // (optional) later: handle register flow here. For now auth is handled in App.tsx.
 
   return (
@@ -178,25 +233,93 @@ export default function Main() {
               posts.map((p: any) => (
                 <Card
                   key={p.id}
+                  postId={p.id}
                   // prefer username (handle null), then displayName
                   alias={p.user?.username || p.user?.displayName || 'Anon'}
                   address={p.user?.walletAddress || 'unknown'}
                   image={p.imageUrl}
                   avatar={p.user?.profilePictureUrl ?? null}
+                  likeCount={p.likeCount}
+                  commentCount={p.commentCount}
+                  onLike={handleLike}
+                  onComment={handleOpenComments}
                 />
               ))
             )}
           </div>
 
-          {/* Sidebar kanan */}
+          {/* Sidebar kanan - comments panel */}
           <div className="col-span-2 p-4">
             <h1 className="text-xl font-bold text-neutral-800">Comments</h1>
-            <div className="w-full p-5 rounded-2xl border border-neutral-200 mt-4 flex flex-col items-center justify-center">
-              <MessageCircleOffIcon size={64} className="text-neutral-300" />
-              <p className="text-neutral-500 font-semibold mt-2">
-                Post Not Found
-              </p>
-            </div>
+            {!selectedPost ? (
+              <div className="w-full p-5 rounded-2xl border border-neutral-200 mt-4 flex flex-col items-center justify-center">
+                <MessageCircleOffIcon size={64} className="text-neutral-300" />
+                <p className="text-neutral-500 font-semibold mt-2">Pilih posting untuk lihat komentar</p>
+              </div>
+            ) : (
+              <div className="w-full mt-4">
+                <div className="rounded-2xl border border-neutral-200 overflow-hidden">
+                  <div className="w-full h-48 bg-neutral-200">
+                    {selectedPost.imageUrl ? (
+                      <img src={selectedPost.imageUrl} alt="post" className="w-full h-full object-cover" />
+                    ) : null}
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-neutral-300 overflow-hidden">
+                        {selectedPost.user?.profilePictureUrl ? (
+                          <img src={selectedPost.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
+                        ) : null}
+                      </div>
+                      <div>
+                        <div className="font-medium">{selectedPost.user?.username || selectedPost.user?.displayName}</div>
+                        <div className="text-xs text-neutral-500">{selectedPost.user?.walletAddress}</div>
+                      </div>
+                    </div>
+                    {selectedPost.caption ? <p className="mt-3">{selectedPost.caption}</p> : null}
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <h4 className="font-semibold mb-2">Komentar</h4>
+                  <div className="max-h-64 overflow-auto space-y-3">
+                    {selectedPost.comments && selectedPost.comments.length > 0 ? (
+                      selectedPost.comments.map((c: any) => (
+                        <div key={c.id} className="p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-neutral-300 overflow-hidden">
+                              {c.user?.profilePictureUrl ? (
+                                <img src={c.user.profilePictureUrl} alt="avatar" className="w-full h-full object-cover" />
+                              ) : null}
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium">{c.user?.username || c.user?.displayName || 'Anon'}</div>
+                              <div className="text-xs text-neutral-500">{c.user?.walletAddress}</div>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-sm">{c.content}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-neutral-500">Belum ada komentar</p>
+                    )}
+                  </div>
+
+                  <div className="mt-4">
+                    <textarea
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      className="w-full border rounded-lg p-2"
+                      placeholder="Tulis komentar..."
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={submitComment} className="px-4 py-2 bg-blue-500 text-white rounded-lg">Kirim</button>
+                      <button onClick={() => setSelectedPost(null)} className="px-4 py-2 border rounded-lg">Tutup</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

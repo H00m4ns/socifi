@@ -7,9 +7,11 @@ import { PrismaClient, reward_claims_action_type } from '@prisma/client'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
-import { SuiClient, getFullnodeUrl } from '@mysten/sui.js/client'
-import { TransactionBlock } from '@mysten/sui.js/transactions'
-import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519'
+import { SuiClient, getFullnodeUrl } from '@mysten/sui/client'
+import { Transaction } from '@mysten/sui/transactions'
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519'
+import { hasHotWallet, getHotWallet, getRewardMist, sendReward } from './sui/hotwallet';
+
 
 // taruh di paling atas (setelah import)
 const toNum = (v: any) => (typeof v === 'bigint' ? Number(v) : v)
@@ -75,56 +77,35 @@ const REWARD_SENDER_ADDR = process.env.REWARD_SENDER_ADDR || ''
 const REWARD_SENDER_SECRET = process.env.REWARD_SENDER_SECRET || '' // base64 (RAW 32 bytes)
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret'
 
-function getHotWallet(): Ed25519Keypair | null {
-  try {
-    if (!REWARD_SENDER_SECRET) return null
-    const raw = Buffer.from(REWARD_SENDER_SECRET, 'base64')
-    if (raw.length !== 32) {
-      console.error('REWARD_SENDER_SECRET harus RAW 32 bytes (base64)')
-      return null
-    }
-    return Ed25519Keypair.fromSecretKey(new Uint8Array(raw))
-  } catch (e) {
-    console.error('Gagal init hot wallet:', e)
-    return null
-  }
-}
-
-async function sendReward(toAddress: string, amountMist: bigint): Promise<string | null> {
-  const kp = getHotWallet()
-  if (!kp) {
-    console.warn('[reward] skipped (no hot wallet)')
-    return null
-  }
-  try {
-    const tx = new TransactionBlock()
-    const [coin] = tx.splitCoins(tx.gas, [tx.pure(amountMist)])
-    tx.transferObjects([coin], tx.pure(toAddress))
-    tx.setGasBudget(2_000_000)
-
-    const res = await sui.signAndExecuteTransactionBlock({
-      signer: kp,
-      transactionBlock: tx,
-      options: { showEffects: true },
-    })
-    console.log('[reward] sent:', res.digest)
-    return res.digest
-  } catch (e) {
-    console.error('[reward] error:', e)
-    return null
-  }
-}
-
 /** =============== Health =============== */
 app.get('/health', (_req, res) => {
+  const hw = getHotWallet();
   res.json({
     ok: true,
-    network: SUI_NETWORK,
-    rewardMist: REWARD_MIST.toString(),
-    sender: REWARD_SENDER_ADDR || null,
-    hasHotWallet: Boolean(REWARD_SENDER_SECRET),
-  })
-})
+    network: process.env.SUI_NETWORK || 'testnet',
+    rewardMist: getRewardMist().toString(),
+    sender: hw.address,
+    hasHotWallet: hasHotWallet(),
+  });
+});
+
+/** =============== Admin: send arbitrary reward (dev only) =============== */
+app.post('/admin/send-reward', async (req, res) => {
+  try {
+    if (!hasHotWallet()) return res.status(500).json({ error: 'Hot wallet not configured on server' });
+
+    const { toAddress, amountMist } = req.body;
+    if (!toAddress) return res.status(400).json({ error: 'toAddress required' });
+
+    const amt: bigint = amountMist != null ? BigInt(amountMist) : getRewardMist();
+    const digest = await sendReward(toAddress, amt);
+
+    res.json({ ok: true, digest });
+  } catch (e: any) {
+    console.error('/admin/send-reward error:', e);
+    res.status(500).json({ error: e?.message || 'reward_failed' });
+  }
+});
 
 /** =============== Auth (nonce + verify) =============== */
 const nonces = new Map<string, string>() // wallet(lowercase) -> nonce
@@ -246,6 +227,51 @@ app.get('/posts', async (_req, res) => {
   } catch (e) {
     console.error('/posts list error:', e)
     res.status(500).json({ error: 'Failed to load posts' })
+  }
+})
+
+/** =============== Get single post with comments =============== */
+app.get('/posts/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    if (!id) return res.status(400).json({ error: 'Invalid post id' })
+    const p = await prisma.post.findUnique({
+      where: { id: BigInt(id) },
+      include: {
+        users: true,
+        likes: true,
+        comments: { include: { users: true }, orderBy: { created_at: 'asc' } },
+      },
+    })
+    if (!p) return res.status(404).json({ error: 'Post not found' })
+
+    const result = {
+      id: toNum(p.id),
+      imageUrl: p.image_url,
+      caption: p.caption,
+      createdAt: p.created_at,
+      user: p.users
+        ? {
+            username: (p.users as any).username,
+            displayName: p.users.display_name,
+            walletAddress: p.users.wallet_address,
+            profilePictureUrl: p.users.profile_picture,
+          }
+        : null,
+      likeCount: Array.isArray(p.likes) ? p.likes.length : 0,
+      commentCount: Array.isArray(p.comments) ? p.comments.length : 0,
+      comments: (p.comments || []).map((c: any) => ({
+        id: toNum(c.id),
+        content: c.content,
+        createdAt: c.created_at,
+        user: c.users ? { displayName: c.users.display_name, walletAddress: c.users.wallet_address, profilePictureUrl: c.users.profile_picture, username: (c.users as any).username } : null,
+      })),
+    }
+
+    res.json(result)
+  } catch (e) {
+    console.error('/posts/:id error', e)
+    res.status(500).json({ error: 'Failed to load post' })
   }
 })
 
