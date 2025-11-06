@@ -218,7 +218,7 @@ export default function Main() {
                   className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:ring"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="james"
+                  placeholder="unknown"
                   required
                 />
               </label>
